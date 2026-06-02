@@ -1,0 +1,44 @@
+name: go
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:${{matrix.postgres}}
+        credentials:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+        - 5432:5432
+        # needed because the postgres container does not provide a healthcheck
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    strategy:
+      matrix:
+        go: ['1.13', '1.14', '1.15', '1.16', '1.17']
+        postgres: ['9.6', '10', '11', '12', '13']
+    steps:
+    - uses: actions/checkout@v2.3.4
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+    - run: go build ./...
+    - run: go build ./...
+      working-directory: tests
+    - run: go test --tags=postgres${{matrix.postgres}} ./...
+      working-directory: tests
+      env:
+        PG_USER: postgres
+        PG_HOST: localhost
+        PG_DATABASE: postgres
+        PG_PASSWORD: postgres
+        PG_PORT: ${{ job.services.postgres.ports['5432'] }}

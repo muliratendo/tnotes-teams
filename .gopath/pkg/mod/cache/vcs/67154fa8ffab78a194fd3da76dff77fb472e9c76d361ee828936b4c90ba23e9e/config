@@ -1,0 +1,7 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = true
+[remote "origin"]
+	url = https://github.com/tendo-mulira/tnotes-teams
+	fetch = +refs/heads/*:refs/remotes/origin/*

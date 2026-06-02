@@ -1,0 +1,9 @@
+./charset.go
+./encoding.go
+./encoding_ascii.go
+./encoding_base.go
+./encoding_bin.go
+./encoding_gbk.go
+./encoding_latin1.go
+./encoding_table.go
+./encoding_utf8.go

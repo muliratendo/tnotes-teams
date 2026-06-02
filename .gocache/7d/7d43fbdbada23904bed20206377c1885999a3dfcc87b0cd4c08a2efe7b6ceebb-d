@@ -1,0 +1,3 @@
+./gen.pb.go
+./gen_grpc.pb.go
+./rpc.go

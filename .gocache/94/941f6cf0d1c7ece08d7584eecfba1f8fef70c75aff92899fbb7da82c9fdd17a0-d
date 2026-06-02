@@ -1,0 +1,4 @@
+./join.go
+./rewrite.go
+./search.go
+./walk.go

@@ -1,0 +1,6 @@
+./context.go
+./extension.go
+./schemahcl.go
+./spec.go
+./stdlib.go
+./types.go

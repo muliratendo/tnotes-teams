@@ -1,0 +1,3 @@
+./makefuncs.go
+./pg_query.go
+./pg_query.pb.go

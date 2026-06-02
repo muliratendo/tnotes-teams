@@ -1,0 +1,5 @@
+./dev.go
+./diff.go
+./plan.go
+./sqlx.go
+./sqlx_oss.go

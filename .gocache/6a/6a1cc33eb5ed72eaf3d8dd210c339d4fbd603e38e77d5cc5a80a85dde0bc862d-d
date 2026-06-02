@@ -1,0 +1,6 @@
+./auth_handler.go
+./board_handler.go
+./card_handler.go
+./handlers.go
+./sync_handler.go
+./workspace_handler.go

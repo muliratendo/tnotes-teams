@@ -1,0 +1,6 @@
+./compatible_shim.go
+./errors.go
+./group.go
+./juju_adaptor.go
+./normalize.go
+./stack.go

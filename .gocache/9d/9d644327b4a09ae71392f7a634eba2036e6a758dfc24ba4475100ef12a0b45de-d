@@ -1,0 +1,11 @@
+./cmd.go
+./createdb.go
+./diff.go
+./generate.go
+./options.go
+./process.go
+./push.go
+./shim.go
+./verify.go
+./vet.go
+./vet_modernc.go

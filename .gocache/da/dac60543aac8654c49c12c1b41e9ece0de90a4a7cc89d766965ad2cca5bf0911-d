@@ -1,0 +1,8 @@
+./atlas.go
+./inspect.go
+./migrate.go
+./mysql.go
+./postgres.go
+./schema.go
+./sqlite.go
+./writer.go

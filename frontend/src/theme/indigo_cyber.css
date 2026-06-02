@@ -1,0 +1,91 @@
+/* Custom Material 3 Warm Theming System: "Indigo Cyber" */
+
+:root {
+  /* Color Palette (Harmonious Warm Indigo, Deep Charcoal & Cyber Gold accents) */
+  --md-sys-color-primary: #6366F1;
+  --md-sys-color-primary-container: #312E81;
+  --md-sys-color-on-primary: #FFFFFF;
+  --md-sys-color-on-primary-container: #E0E7FF;
+  
+  --md-sys-color-secondary: #F59E0B;
+  --md-sys-color-secondary-container: #78350F;
+  --md-sys-color-on-secondary: #000000;
+  --md-sys-color-on-secondary-container: #FEF3C7;
+  
+  --md-sys-color-background: #0B0F19;
+  --md-sys-color-on-background: #F3F4F6;
+  
+  --md-sys-color-surface: #111827;
+  --md-sys-color-surface-variant: #1F2937;
+  --md-sys-color-on-surface: #E5E7EB;
+  --md-sys-color-on-surface-variant: #9CA3AF;
+  
+  --md-sys-color-outline: #374151;
+  --md-sys-color-error: #EF4444;
+  --md-sys-color-on-error: #FFFFFF;
+
+  /* Elevation Shadows (Material 3 depth hierarchies) */
+  --elevation-0: none;
+  --elevation-1: 0px 1px 3px 1px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.30);
+  --elevation-2: 0px 2px 6px 2px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.30);
+  --elevation-3: 0px 4px 8px 3px rgba(0, 0, 0, 0.15), 0px 1px 3px 0px rgba(0, 0, 0, 0.30);
+  --elevation-4: 0px 6px 10px 4px rgba(0, 0, 0, 0.15), 0px 2px 3px 0px rgba(0, 0, 0, 0.30);
+  --elevation-5: 0px 8px 12px 6px rgba(0, 0, 0, 0.15), 0px 3px 4px 0px rgba(0, 0, 0, 0.30);
+
+  /* Typography */
+  --font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  
+  /* Transitions */
+  --transition-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Global Reset and Edge-to-Edge Full Viewport */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-background);
+  font-family: var(--font-family);
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Layout container */
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+/* Interactive elements scrollbar overrides */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--md-sys-color-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-primary);
+}
+
+/* Glassmorphism utility card styling */
+.glass-panel {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}

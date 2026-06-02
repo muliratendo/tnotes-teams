@@ -1,0 +1,13 @@
+./analyze.go
+./compat.go
+./compile.go
+./engine.go
+./expand.go
+./find_params.go
+./output_columns.go
+./parse.go
+./query.go
+./query_catalog.go
+./resolve.go
+./result.go
+./to_column.go

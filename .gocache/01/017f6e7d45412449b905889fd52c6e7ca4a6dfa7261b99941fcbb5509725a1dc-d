@@ -1,0 +1,10 @@
+./catalog.go
+./convert.go
+./extension.go
+./information_schema.go
+./parse.go
+./parse_default.go
+./pg_catalog.go
+./pg_temp.go
+./reserved.go
+./utils.go

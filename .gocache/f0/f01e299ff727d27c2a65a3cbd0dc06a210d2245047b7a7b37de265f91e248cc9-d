@@ -1,0 +1,6 @@
+./catalog.go
+./convert.go
+./parse.go
+./reserved.go
+./stdlib.go
+./utils.go

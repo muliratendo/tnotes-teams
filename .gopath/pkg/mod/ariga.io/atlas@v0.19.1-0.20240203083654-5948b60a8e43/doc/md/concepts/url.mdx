@@ -1,0 +1,191 @@
+---
+title: URLs
+id: concepts-url
+slug: /concepts/url
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+## What is a URL?
+
+Uniform Resource Locators, or URLs are a standardized method for specifying a location of a resource.
+All the component parts of a URL are shown below:
+
+```
+driver://[username[:password]@]address/[schema|database][?param1=value1&...&paramN=valueN]
+```
+
+An example might look like:
+
+<Tabs
+defaultValue="mysql"
+values={[
+{label: 'MySQL', value: 'mysql'},
+{label: 'MariaDB', value: 'maria'},
+{label: 'PostgreSQL', value: 'postgres'},
+{label: 'SQLServer', value: 'sqlserver'},
+{label: 'SQLite', value: 'sqlite'},
+{label: 'Docker', value: 'docker'},
+]}>
+<TabItem value="mysql">
+
+Connecting to a local MySQL server (all schemas/databases):
+```shell
+mysql://localhost:3306/
+```
+
+Connecting to a specific MySQL schema (database) with a username and password:
+```shell
+mysql://user:pass@localhost:3306/schema
+```
+
+Connecting using Unix Sockets:
+```
+mysql+unix:///tmp/mysql.sock
+
+mysql+unix://user:pass@/tmp/mysql.sock
+
+mysql+unix://user@/tmp/mysql.sock?database=dbname
+```
+
+</TabItem>
+<TabItem value="maria">
+
+Connecting to a local MariaDB server (all schemas/databases):
+```shell
+maria://localhost:3306/
+```
+
+Connecting to a specific MariaDB schema (database) with a username and password:
+```shell
+maria://user:pass@localhost:3306/schema
+```
+
+Connecting using Unix Sockets:
+```
+maria+unix:///tmp/mysql.sock
+
+maria+unix://user:pass@/tmp/mysql.sock
+
+maria+unix://user@/tmp/mysql.sock?database=dbname
+```
+
+</TabItem>
+<TabItem value="postgres">
+
+Connecting to a local PostgreSQL database named `database` (all schemas):
+```shell
+postgres://localhost:5432/database
+```
+
+Connecting to a specific PostgreSQL schema named `public`:
+```shell
+postgres://localhost:5432/database?search_path=public
+```
+
+Connecting to a local PostgreSQL with credentials and SSL disabled:
+```shell
+postgres://postgres:pass@0.0.0.0:5432/database?search_path=public&sslmode=disable
+```
+
+</TabItem>
+<TabItem value="sqlserver">
+
+Connecting to a default schema of current user:
+```shell
+sqlserver://sa:P@ssw0rd0995@localhost:1433?database=master&mode=schema
+```
+
+Connecting to a local SQLServer database named `master` (all schemas). The user need to have `db_owner` role:
+```shell
+sqlserver://sa:P@ssw0rd0995@localhost:1433?database=master&mode=database
+```
+
+:::note
+- The `mode` parameter is Atlas-specific and isn't used for opening the underlying connection.
+- The default `mode` is `schema`.
+:::
+</TabItem>
+<TabItem value="sqlite">
+
+Connecting to a local SQLite database (file):
+```shell
+sqlite://file.db
+```
+
+Connecting to an in-memory SQLite database (ephemeral). Useful for `--dev-url`:
+```shell
+sqlite://file?mode=memory&_fk=1
+```
+
+Atlas also supports WebSocket connections to remote `libsql` databases:
+
+```shell
+libsql+ws://database-url # For local environments
+libsql+wss://database-url
+```
+
+</TabItem>
+<TabItem value="docker">
+
+Atlas can spin up an ephemeral local docker container for you by specifying a special URL like below. This can be useful
+if you need a [dev database](../concepts/dev.mdx) for schema validation or diffing. However, some images like `mysql` /
+`mariadb` take quite some time to "boot", before they are ready to be used. For a smoother developing experience
+consider spinning up a longer lived container by yourself.
+
+```shell
+# PostgreSQL database scope (all schemas).
+docker://postgres/15/test
+
+# PostgreSQL specific schema scope.
+docker://postgres/15/test?search_path=public
+
+# MySQL server scope (all schemas).
+docker://mysql/8
+
+# MySQL specific schema scope.
+docker://mysql/8/test
+
+# MySQL server scope (all schemas).
+docker://maria/latest
+
+# MySQL specific schema scope.
+docker://maria/latest/test
+```
+
+</TabItem>
+</Tabs>
+
+## SSL/TLS Mode
+
+The default SSL mode for Postgres is `required`. Please follow the
+[Postgres documentation](https://www.postgresql.org/docs/current/libpq-ssl.html)
+for configuring your SSL connection for your database, or set SSL mode to `disable`
+with the search parameter `?sslmode=disable`. For local databases,
+disabling SSL is appropriate when inspecting and applying schema changes.
+
+MySQL does not require TLS by default. However, you can require TLS
+with the `?tls=true` search parameter.
+
+## Non-alphanumeric characters
+
+Database URLs often contain passwords and other information which may contain non-alphanumeric characters.
+These characters must be escaped using standard URL encoding, in order to be parsed correctly.
+As a convenience, users may use the `urlescape` function in an `atlas.hcl` [project file](/concepts/url) to escape
+these characters automatically.
+
+Suppose your password is `h:e!:l:l:o` and it is stored as an environment variable named `DB_PASSWORD`, you
+can read this value and escape it using the `urlescape` function:
+
+```hcl title="atlas.hcl"
+locals {
+  db_pass = urlescape(env("DB_PASSWORD"))
+}
+
+env "local" {
+    url = "postgres://user:${local.db_pass}@localhost:5432/database"
+}
+```
+
+The `urlescape` function return the escaped value: `h%3Ae%21%3Al%3Al%3Ao`.

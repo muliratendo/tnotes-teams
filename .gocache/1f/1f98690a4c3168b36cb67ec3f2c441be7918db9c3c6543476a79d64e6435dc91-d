@@ -1,0 +1,9 @@
+./catalog.go
+./comment_on.go
+./extension.go
+./func.go
+./public.go
+./schema.go
+./table.go
+./types.go
+./view.go

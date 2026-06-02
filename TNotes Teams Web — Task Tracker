@@ -1,0 +1,91 @@
+# TNotes Teams Web — Task Tracker
+
+## Phase 1: Foundation
+
+### Backend Setup
+- [/] Initialize Go module and project structure
+- [ ] Create config package
+- [ ] Create database connection package
+- [ ] Set up Ent schemas (all entities)
+- [ ] Run Ent code generation
+- [ ] Set up sqlc config and queries
+- [ ] Run sqlc code generation
+
+### Utilities & Middleware
+- [ ] JWT utilities
+- [ ] Password hashing utilities
+- [ ] API response helpers
+- [ ] Auth middleware
+- [ ] RBAC middleware
+- [ ] CORS middleware
+- [ ] Rate limiting middleware
+
+### Repository Layer
+- [ ] User repository
+- [ ] Workspace repository
+- [ ] Board repository
+- [ ] List repository
+- [ ] Card repository
+- [ ] Subtask repository
+- [ ] Comment repository
+- [ ] Quick note repository
+- [ ] Activity log repository
+
+### Service Layer
+- [ ] Auth service
+- [ ] Workspace service
+- [ ] Board service
+- [ ] Card service
+- [ ] Sync service
+- [ ] Export service
+
+### HTTP Handlers
+- [ ] Auth handler
+- [ ] Workspace handler
+- [ ] Board handler
+- [ ] List handler
+- [ ] Card handler
+- [ ] Route registration
+
+### Server Entrypoint
+- [ ] cmd/server/main.go
+
+## Phase 2: Real-Time Collaboration
+- [ ] WebSocket hub
+- [ ] WebSocket client
+- [ ] WebSocket events
+- [ ] WebSocket HTTP handler
+- [ ] Team update engine (background worker)
+
+## Phase 3: Frontend Implementation
+- [ ] Vite + React + TypeScript scaffold
+- [ ] Theme system (Indigo Cyber)
+- [ ] Zustand stores
+- [ ] API service
+- [ ] WebSocket service
+- [ ] Offline queue (Dexie.js)
+- [ ] Sync orchestrator
+- [ ] Layout components (AppShell, Sidebar)
+- [ ] Board components (Canvas, List, Card)
+- [ ] Card detail components (Drawer, Subtasks, Notes, Comments)
+- [ ] Presence components (Avatars, Cursors)
+- [ ] Common components (Snackbar, SyncIndicator, ThemeToggle)
+- [ ] Pages (Login, Workspace, Board)
+- [ ] Drag-and-drop with Framer Motion
+
+## Phase 4: Offline & Permissions
+- [ ] IndexedDB mutation queue
+- [ ] Sync orchestrator reconnection flow
+- [ ] Offline toggle UI
+- [ ] RBAC enforcement in frontend
+- [ ] Permission snackbar system
+
+## Phase 5: Docker & Testing
+- [ ] Backend Dockerfile
+- [ ] Frontend Dockerfile
+- [ ] docker-compose.yml
+- [ ] Makefile
+- [ ] Documentation (ARCHITECTURE.md, FEATURES_CHECKLIST.md, README.md)
+- [ ] Go unit tests
+- [ ] Frontend unit tests
+

@@ -1,0 +1,7 @@
+./auth_service.go
+./board_service.go
+./card_service.go
+./export_service.go
+./services.go
+./sync_service.go
+./workspace_service.go

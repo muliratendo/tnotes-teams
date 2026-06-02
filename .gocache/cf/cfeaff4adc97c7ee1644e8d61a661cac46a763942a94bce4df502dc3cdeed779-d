@@ -1,0 +1,6 @@
+./changekind_string.go
+./dsl.go
+./exclude.go
+./inspect.go
+./migrate.go
+./schema.go

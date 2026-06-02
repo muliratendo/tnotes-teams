@@ -1,0 +1,6 @@
+./abi.go
+./backend.go
+./compiler.go
+./compiler_lower.go
+./machine.go
+./vdef.go

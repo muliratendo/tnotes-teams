@@ -1,0 +1,11 @@
+./ast.go
+./didyoumean.go
+./doc.go
+./is.go
+./navigation.go
+./parser.go
+./peeker.go
+./public.go
+./scanner.go
+./structure.go
+./tokentype_string.go

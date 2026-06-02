@@ -1,0 +1,443 @@
+name: Standard Library Integration Tests
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:  # ignore docs as they are built with Netlify.
+      - '**/*.md'
+      - 'site/**'
+      - 'netlify.toml'
+  push:
+    branches: [main]
+    paths-ignore:  # ignore docs as they are built with Netlify.
+      - '**/*.md'
+      - 'site/**'
+      - 'netlify.toml'
+
+defaults:
+  run:  # use bash for all operating systems unless overridden
+    shell: bash
+
+env:  # Update this prior to requiring a higher minor version in go.mod
+  GO_VERSION: "1.21"  # 1.xx == latest patch of 1.xx
+  TINYGO_VERSION: "0.30.0"
+  ZIG_VERSION: "0.11.0"
+  BINARYEN_VERSION: "116"
+  STDLIB_TESTS: "internal/integration_test/stdlibs"
+
+concurrency:
+  # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#example-using-concurrency-to-cancel-any-in-progress-job-or-run
+  group: ${{ github.ref }}-${{ github.workflow }}-${{ github.actor }}
+  cancel-in-progress: true
+
+jobs:
+  # This builds a zig test binary only if the same version tag hasn't been build before.
+  # This saves time as we rarely update the zig version.
+  build_zig_test_binary:
+    name: Build Zig test binary
+    runs-on: ubuntu-22.04
+    env:
+      ZIG_INSTALL: ~/zig-install
+      ZIG_SOURCE: ~/zig-source
+      BINARYEN_INSTALL: ~/binaryen-install
+
+    steps:
+      - name: Checkout wazero
+        uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        id: binary-cache
+        with:
+          # Use share the cache containing archives across OSes.
+          enableCrossOsArchive: true
+          key: zig-stdlib-test-binary-${{ env.ZIG_VERSION }}
+          path:
+            ${{ env.STDLIB_TESTS }}/testdata/zig
+
+      - name: Install Zig build
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ${{ env.ZIG_INSTALL }}
+          curl -sSL https://ziglang.org/download/${{ env.ZIG_VERSION }}/zig-linux-x86_64-${{ env.ZIG_VERSION }}.tar.xz | tar -xJ --strip-components=1 -C ${{ env.ZIG_INSTALL }}
+
+      - name: Download Zig source code
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ${{ env.ZIG_SOURCE }}
+          curl -sSL https://ziglang.org/download/${{ env.ZIG_VERSION }}/zig-${{ env.ZIG_VERSION }}.tar.xz | tar -xJ --strip-components=1 -C ${{ env.ZIG_SOURCE }}
+
+      - name: Install Binaryen build
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ${{ env.BINARYEN_INSTALL }}
+          curl -sSL https://github.com/WebAssembly/binaryen/releases/download/version_${{ env.BINARYEN_VERSION }}/binaryen-version_${{ env.BINARYEN_VERSION }}-x86_64-linux.tar.gz | tar -xz --strip-components=1 -C ${{ env.BINARYEN_INSTALL }}
+
+      - name: Build Stdlib test binary
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        # --test-no-exec allows building of the test Wasm binary without executing command.
+        # We use find because the test.wasm will be something like ./zig-cache/o/dd6df1361b2134adc5eee9d027495436/test.wasm
+        run: |
+          PATH=${{ env.ZIG_INSTALL }}:${{ env.BINARYEN_INSTALL }}/bin:$PATH
+          cd ${{ env.STDLIB_TESTS }}
+          make build.zig zigroot=${{ env.ZIG_SOURCE }}
+
+  zig:
+    needs: build_zig_test_binary
+    name: Zig (${{ matrix.os }}, ${{ matrix.arch }}, ${{ matrix.compiler }}-compiler)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # don't fail fast as sometimes failures are arch/OS specific
+      matrix:
+        os:       [ubuntu-22.04, macos-12, windows-2022]
+        compiler: [baseline]
+        arch:     [amd64]
+        include:
+          - os:       ubuntu-22.04
+            compiler: optimizing
+            arch:     "arm64"
+
+    steps:
+      - name: Checkout wazero
+        uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        id: binary-cache
+        with:
+          # Use share the cache containing archives across OSes.
+          enableCrossOsArchive: true
+          # We need this cache to run tests.
+          fail-on-cache-miss: true
+          key: zig-stdlib-test-binary-${{ env.ZIG_VERSION }}
+          path:
+            ${{ env.STDLIB_TESTS }}/testdata/zig
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - if: ${{ matrix.compiler == 'optimizing' }}
+        name: Build wazero
+        run: go build -o ./wazerocli ./cmd/wazero
+        env:
+          GOARCH: ${{ matrix.arch }}
+
+      - name: Set up QEMU
+        if: ${{ matrix.compiler == 'optimizing' && matrix.arch == 'arm64' }}
+        uses: docker/setup-qemu-action@v2
+        with: # Avoid docker.io rate-limits; built with internal-images.yml
+          image: ghcr.io/tetratelabs/wazero/internal-binfmt
+          platforms: ${{ matrix.arch }}
+
+      - name: Build scratch container
+        if: ${{ matrix.compiler == 'optimizing' }}
+        run: |
+          echo 'FROM scratch' >> Dockerfile
+          echo 'CMD ["/test"]' >> Dockerfile
+          docker buildx build -t wazero:test --platform linux/${{ matrix.arch }} .
+
+
+      # The following two steps run the previously compiled Zig tests with wazero.
+      # If you need to troubleshoot any of the test, you can add "-hostlogging=filesystem" after
+      # adding filter argument either to step "Run built test binaries" or
+      # "Run built test binaries (container)".
+      # e.g. --test-filter "Dir.Iterator but dir is deleted during iteration"
+
+      - name: Run built test binaries (container)
+        if: ${{ matrix.compiler == 'optimizing' }}
+        run: |
+          docker run --platform linux/${{ matrix.arch }} -v $(pwd)/${{ env.STDLIB_TESTS }}/testdata/zig:/test -v $(pwd)/wazerocli:/wazero -e WAZEROCLI=/wazero --tmpfs /tmp --rm -t wazero:test \
+            /wazero run -optimizing-compiler -mount=:/ ./test/test.wasm
+
+      - name: Run built test binaries
+        if: ${{ matrix.compiler != 'optimizing' }}
+        run: |
+          cd ${{ env.STDLIB_TESTS }}
+          go test -bench='BenchmarkZig' -benchtime=1x
+
+  build_tinygo_test_binary:
+    name: Build TinyGo test binary
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout wazero
+        uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        id: binary-cache
+        with:
+          # Use share the cache containing archives across OSes.
+          enableCrossOsArchive: true
+          key: tinygo-test-binaries-${{ env.TINYGO_VERSION }}
+          path:
+            ${{ env.STDLIB_TESTS }}/testdata/tinygo
+
+      - name: Install TinyGo
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        run: |  # installing via curl so commands are similar on OS/x
+          tinygo_version=${{ env.TINYGO_VERSION }}
+          curl -sSL https://github.com/tinygo-org/tinygo/releases/download/v${tinygo_version}/tinygo${tinygo_version}.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
+          echo "TINYGOROOT=/usr/local/tinygo" >> $GITHUB_ENV
+          echo "/usr/local/tinygo/bin" >> $GITHUB_PATH
+
+      - uses: actions/setup-go@v4
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build Test Binaries
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        # The following list of packages is derived from:
+        # https://github.com/tinygo-org/tinygo/blob/v0.28.1/Makefile#L281-L322
+        # Note:
+        #  - index/suffixarray is extremely slow, so skip it.
+        #  - compress/zlib is skipped as it depends on the local files https://github.com/golang/go/blob/go1.20/src/compress/zlib/writer_test.go#L16-L30
+        #  - debug/macho is skipped as it depends on the local files https://github.com/golang/go/blob/go1.20/src/debug/macho/file_test.go#L25
+        run: |
+          cd ${{ env.STDLIB_TESTS }}
+          make build.tinygo
+
+  tinygo:
+    needs: build_tinygo_test_binary
+    name: TinyGo (${{ matrix.os }}, ${{ matrix.arch }}, ${{ matrix.compiler }}-compiler)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # don't fail fast as sometimes failures are arch/OS specific
+      matrix:
+        os:       [ubuntu-22.04, macos-12, windows-2022]
+        compiler: [baseline]
+        arch:     [amd64]
+        include:
+          - os:       ubuntu-22.04
+            compiler: optimizing
+            arch:     "arm64"
+
+    steps:
+      - name: Checkout wazero
+        uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        id: binary-cache
+        with:
+          # Use share the cache containing archives across OSes.
+          enableCrossOsArchive: true
+          # We need this cache to run tests.
+          fail-on-cache-miss: true
+          key: tinygo-test-binaries-${{ env.TINYGO_VERSION }}
+          path:
+            ${{ env.STDLIB_TESTS }}/testdata/tinygo
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - if: ${{ matrix.compiler == 'optimizing' }}
+        name: Build wazero
+        run: go build -o ~/wazerocli ./cmd/wazero
+        env:
+          GOARCH: ${{ matrix.arch }}
+
+      - name: Set up QEMU
+        if: ${{ matrix.compiler == 'optimizing' && matrix.arch == 'arm64' }}
+        uses: docker/setup-qemu-action@v2
+        with: # Avoid docker.io rate-limits; built with internal-images.yml
+          image: ghcr.io/tetratelabs/wazero/internal-binfmt
+          platforms: ${{ matrix.arch }}
+
+      - name: Build scratch container
+        if: ${{ matrix.compiler == 'optimizing' }}
+        run: |
+          echo 'FROM scratch' >> Dockerfile
+          echo 'CMD ["/test"]' >> Dockerfile
+          docker buildx build -t wazero:test --platform linux/${{ matrix.arch }} .
+
+      # The following steps run the previously compiled TinyGo tests with wazero. If you need
+      # to troubleshoot one, you can add "-hostlogging=filesystem" and also a
+      # trailing argument narrowing which test to execute.
+      # e.g. "-test.run '^TestStatBadDir$'"
+
+      - name: Run test binaries (container)
+        if: ${{ matrix.compiler == 'optimizing' }}
+        # This runs all tests compiled above in sequence. Note: This mounts /tmp to allow t.TempDir() in tests.
+        run: |
+          cd ${{ env.STDLIB_TESTS }}/testdata/tinygo
+          for bin in *.test; do
+            echo $bin
+            docker run --platform linux/${{ matrix.arch }} -v $(pwd):/test -v ~/wazerocli:/wazero -e WAZEROCLI=/wazero --tmpfs /tmp --rm -t wazero:test \
+              /wazero run -optimizing-compiler -mount=:/  /test/$bin -- -test.v
+          done
+
+      - name: Run test binaries
+        if: ${{ matrix.compiler != 'optimizing' }}
+        run: |
+          cd ${{ env.STDLIB_TESTS }}
+          go test -bench='BenchmarkTinyGo' -benchtime=1x
+
+  wasi-testsuite:
+    name: wasi-testsuite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # don't fail fast as sometimes failures are arch/OS specific
+      matrix:
+        os: [ubuntu-22.04, macos-12, windows-2022]
+
+    steps:
+      - uses: actions/cache@v3
+        id: cache
+        with:
+          path:
+            ~/go/pkg/mod
+          key: integration-test-wasi-testsuite-${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout wazero
+        uses: actions/checkout@v3
+
+      - name: Install wazero
+        run: go install ./cmd/wazero
+
+      - name: Checkout wasi-testsuite
+        uses: actions/checkout@v3
+        with:
+          repository: WebAssembly/wasi-testsuite
+          # prod/testsuite-base branch, as of May 12, 2023.
+          # TODO: once the wasi-testsuite is stable, we should use the latest tag instead of a branch.
+          ref: c9c751586fd86b321d595bbef13f2c7403cfdbc5
+          path: wasi-testsuite
+
+      - name: Initialize Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11' # latest version of python 3
+          cache: pip
+
+      - name: Install dependencies
+        working-directory: wasi-testsuite/test-runner
+        run: |
+          python3 -m pip install -r requirements.txt
+
+      - name: Run all wasi-testsuite
+        working-directory: wasi-testsuite
+        run: |
+          python3 test-runner/wasi_test_runner.py \
+            -t ./tests/assemblyscript/testsuite/ \
+            ./tests/c/testsuite/ \
+            ./tests/rust/testsuite/ \
+            -f ../.github/wasi_testsuite_skip.json \
+            -r ../.github/wasi_testsuite_adapter.py
+
+  gojs_stdlib:
+    name: Go (js) (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # don't fail fast as sometimes failures are arch/OS specific
+      matrix:
+        os: [ubuntu-22.04, macos-12] # GOOS=js isn't supposed to work on windows. See #1222
+
+    steps:
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Checkout wazero
+        uses: actions/checkout@v3
+
+      - name: Install wazero
+        run: go install ./cmd/wazero
+
+      - name: Build gojs test binaries
+        env:
+          GOOS: js
+          GOARCH: wasm
+        run: | # Only test os package as this is being replaced by GOOS=wasip1
+          mkdir ~/bin && cd ~/bin
+          go test -c -o os.wasm os
+
+      - name: Run tests
+        run: |  # skip tests that use functionality not also used in GOOS=wasip1
+          cd $(go env GOROOT)/src/os; wazero run -mount=/:/ ~/bin/os.wasm -test.v -test.skip '^Test(Chmod|Truncate|LongPath|Chown|FileChown).*$'
+
+  go_tests:
+    # Due to the embedding of the GOROOT of the building env(https://github.com/golang/go/blob/3c59639b902fada0a2e5a6a35bafd10fc9183b89/src/os/os_test.go#L112),
+    # we have to build and cache on each OS unlike others in this file.
+    name: Go (${{ matrix.os }}, Go-${{ matrix.go-version }}, ${{ matrix.arch }}, ${{ matrix.compiler }}-compiler)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # don't fail fast as sometimes failures are arch/OS specific
+      matrix:
+        os:       [ubuntu-22.04, macos-12, windows-2022]
+        compiler: [baseline]
+        arch:     [amd64]
+        go-version:
+          - "1.21"  # Current Go version && The only version that supports wasip1.
+        include:
+          - os:         ubuntu-22.04
+            compiler:   optimizing
+            arch:       "arm64"
+            go-version: "1.21"
+    steps:
+      - id: setup-go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout wazero
+        uses: actions/checkout@v3
+
+      - name: Cache Go test binaries
+        id: cache-go-test-binaries
+        uses: actions/cache@v3
+        with:
+          path:
+            ${{ env.STDLIB_TESTS }}/testdata/go
+          # Use precise Go version from setup-go as patch version differences can effect tests.
+          key: go-wasip1-binaries-${{ matrix.os }}-${{ steps.setup-go.outputs.go-version }}-${{ matrix.arch }}
+
+      - if: ${{ matrix.compiler == 'optimizing' }}
+        name: Build wazero
+        run: go build -o ~/wazerocli ./cmd/wazero
+        env:
+          GOARCH: ${{ matrix.arch }}
+
+      - if: ${{ steps.cache-go-test-binaries.outputs.cache-hit != 'true' }}
+        name: Build Test Binaries
+        run: |
+          cd ${{ env.STDLIB_TESTS }}
+          make build.gowasip1
+
+      - name: Set up QEMU
+        if: ${{ matrix.compiler == 'optimizing' && matrix.arch == 'arm64' }}
+        uses: docker/setup-qemu-action@v2
+        with: # Avoid docker.io rate-limits; built with internal-images.yml
+          image: ghcr.io/tetratelabs/wazero/internal-binfmt
+          platforms: ${{ matrix.arch }}
+
+      - name: Build scratch container
+        if: ${{ matrix.compiler == 'optimizing' }}
+        run: |
+          echo 'FROM scratch' >> Dockerfile
+          echo 'CMD ["/test"]' >> Dockerfile
+          docker buildx build -t wazero:test --platform linux/${{ matrix.arch }} .
+
+      - if: ${{ matrix.compiler == 'optimizing' }}
+        name: Run test binaries (container)
+        run: |
+          echo "Running $(find ${{ env.STDLIB_TESTS }}/testdata/go -name '*.test' | wc -l) test binaries"
+
+          # Skip tests that are hideously slow (mostly compilation time) for running inside QEMU.
+          skip_targets="src_encoding_json|src_runtime|src_os_exec|src_math_big|src_encoding_gob|src_time|src_archive_tar|src_math_rand|src_expvar|src_testing|src_os"
+          # Go tests often look for files relative to the source. Change to the corresponding directory.
+          for bin in $(find $PWD/${{ env.STDLIB_TESTS }}/testdata/go -name '*.test' | grep -vE "$skip_targets"); do
+            dir=$(basename $bin); dir=${dir%.test}; dir=${dir//_/\/}
+            pushd $(go env GOROOT)/$dir
+            # Mount / as /ROOT in docker and then remount /ROOT as / in wazero; $bin is now in /ROOT/$bin.
+            docker run --platform linux/arm64 -v /:/ROOT -v ~/wazerocli:/wazero -e WAZEROCLI=/wazero --tmpfs /tmp --rm -t wazero:test \
+              /wazero run -optimizing-compiler -mount=/ROOT:/ -mount=/tmp:/tmp -env PWD=$PWD /ROOT/$bin -- -test.short -test.v
+            popd
+          done
+
+      - name: Run built test binaries
+        if: ${{ matrix.compiler != 'optimizing' }}
+        run: |
+          cd ${{ env.STDLIB_TESTS }}
+          go test -bench='BenchmarkWasip1' -benchtime=1x

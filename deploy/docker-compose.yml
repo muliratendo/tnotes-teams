@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tnotes
+      POSTGRES_PASSWORD: tnotes
+      POSTGRES_DB: tnotes_teams
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tnotes -d tnotes_teams"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    environment:
+      PORT: "8080"
+      ENVIRONMENT: development
+      DATABASE_URL: postgres://tnotes:tnotes@postgres:5432/tnotes_teams?sslmode=disable
+      JWT_SECRET: tnotes-dev-secret-change-in-production
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost
+      TEAM_ENGINE_ENABLED: "true"
+      TEAM_ENGINE_INTERVAL: 45s
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

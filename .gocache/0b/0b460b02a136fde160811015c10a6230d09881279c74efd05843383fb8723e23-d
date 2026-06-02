@@ -1,0 +1,14 @@
+./driver.go
+./enum.go
+./field.go
+./gen.go
+./go_type.go
+./imports.go
+./mysql_type.go
+./postgresql_type.go
+./query.go
+./reserved.go
+./result.go
+./sqlite_type.go
+./struct.go
+./template.go
